@@ -3,43 +3,40 @@
 #include <assert.h>
 #include <math.h>
 #include "common.h"
-#include <iostream>
 #include <vector>
+#include "omp.h"
 using namespace std;
-
 
 //
 //  benchmarking program
 //
 int main( int argc, char **argv )
-{     
-    int navg,nabsavg=0;
-    double davg,dmin, absmin=1.0, absavg=0.0;
-
+{   
+    int navg,nabsavg=0,numthreads; 
+    double dmin, absmin=1.0,davg,absavg=0.0;
+	
     if( find_option( argc, argv, "-h" ) >= 0 )
     {
         printf( "Options:\n" );
         printf( "-h to see this help\n" );
-        printf( "-n <int> to set the number of particles\n" );
+        printf( "-n <int> to set number of particles\n" );
         printf( "-o <filename> to specify the output file name\n" );
-        printf( "-s <filename> to specify a summary file name\n" );
-        printf( "-no turns off all correctness checks and particle output\n");
+        printf( "-s <filename> to specify a summary file name\n" ); 
+        printf( "-no turns off all correctness checks and particle output\n");   
         return 0;
     }
-    
 
     int n = read_int( argc, argv, "-n", 1000 );
-
     char *savename = read_string( argc, argv, "-o", NULL );
     char *sumname = read_string( argc, argv, "-s", NULL );
-    
+
     FILE *fsave = savename ? fopen( savename, "w" ) : NULL;
-    FILE *fsum = sumname ? fopen ( sumname, "a" ) : NULL;
+    FILE *fsum = sumname ? fopen ( sumname, "a" ) : NULL;      
 
     particle_t *particles = (particle_t*) malloc( n * sizeof(particle_t) );
     set_size( n );
     init_particles( n, particles );
-    
+
 
     double cutoff = 0.02;
     double space_dim = sqrt(n * 0.0005);
@@ -54,54 +51,64 @@ int main( int argc, char **argv )
 
 
     vector<vector<int> > cell_vector(num_cells);
+    omp_lock_t lock;
+    omp_init_lock(&lock);
 
     //
     //  simulate a number of time steps
     //
     double simulation_time = read_timer( );
+
+    #pragma omp parallel private(dmin) shared(cell_vector)
+    {
+    numthreads = omp_get_num_threads();
     for( int step = 0; step < NSTEPS; step++ )
     {
-        // cout << endl;
         navg = 0;
         davg = 0.0;
-        dmin = 1.0;
+	    dmin = 1.0;
         //
-        //  compute forces
+        //  compute all forces
         //
+        #pragma omp for
         for(int i = 0; i < num_cells; i++){
+            // omp_set_lock(&lock);
             cell_vector[i].clear();
+            // omp_unset_lock(&lock);
         }
+
+        // #pragma omp barrier
+
+        #pragma omp for
         for(int i = 0; i < n; i++){
             // cout << particles[i].x << " " << particles[i].y << " ";
             int cell_x = floor(particles[i].x / cell_edge);
             int cell_y = floor(particles[i].y / cell_edge);
             int cell_index = cell_x * cells_in_row + cell_y;
             // cout << "--> (" << cell_x << ", " << cell_y << ") --> " << cell_index << endl;
+            omp_set_lock(&lock);
             cell_vector[cell_index].push_back(i);
+            omp_unset_lock(&lock);
         }
-        // for(int i = 0; i < num_cells; i++){
-        //     cout << "Cell " << i << ": ";
-        //     for(int j = 0; j < cell_vector[i].size(); j++){
-        //         cout << cell_vector[i][j] << " ";
-        //     }
-        //     cout << endl;
-        // }
 
+        // #pragma omp barrier
+
+        #pragma omp for collapse(2) reduction (+:navg) reduction(+:davg)
         for(int cell_x = 0; cell_x < cells_in_row; cell_x++){
             for(int cell_y = 0; cell_y < cells_in_row; cell_y++){
+
                 int cell_index = cell_x * cells_in_row + cell_y;
                 for (int p = 0; p < cell_vector[cell_index].size(); p++){
                     particles[cell_vector[cell_index][p]].ax = particles[cell_vector[cell_index][p]].ay = 0;
                 }
                 // cout << "Cell index " << cell_x << ", " << cell_y << " (" << cell_index << ")" << endl;
-
                 for(int neighbor_x = cell_x - 1; neighbor_x <= cell_x + 1; neighbor_x++){
                     for(int neighbor_y = cell_y - 1; neighbor_y <= cell_y + 1; neighbor_y++){
 
                         if((neighbor_x >=0 && neighbor_x <= cells_in_row - 1) && (neighbor_y >=0 && neighbor_y <= cells_in_row - 1)){
                             int neighbor_index = ((neighbor_x + cells_in_row) % cells_in_row) * cells_in_row + ((neighbor_y + cells_in_row) % cells_in_row);
                             // cout << "\tNeighbor " << neighbor_x << ", " << neighbor_y << " (" << neighbor_index << ")" << endl;
-
+                            
                             for(int cell_p = 0; cell_p < cell_vector[cell_index].size(); cell_p++){
                                 // particles[cell_vector[cell_index][l]].ax = particles[cell_vector[cell_index][l]].ay = 0;
                                 for(int neighbor_p = 0; neighbor_p < cell_vector[neighbor_index].size(); neighbor_p++){
@@ -116,64 +123,50 @@ int main( int argc, char **argv )
                 }
             }
         }
-            // for(int j = i - cells_in_row; j <= i + cells_in_row; j += cells_in_row){
-            //     for(int k = j - 1; k <= j + 1; k++){
-            //         if(k >=0 && k <= num_cells - 1){
-            //             cout << "\tNeighbor " << k << endl;
-            //             for(int l = 0; l < cell_vector[i].size(); l++){
-            //                 particles[cell_vector[i][l]].ax = particles[cell_vector[i][l]].ay = 0;
-            //                 for(int m = 0; m < cell_vector[k].size(); m++){
-            //                     // cout << l << " " << m << endl;
-            //                     if(cell_vector[i][l] < cell_vector[k][m]){
-                                    
-            //                     }
-            //                 }
-            //             }
-            //         }
-            //     }
-            // }
-        
 
 
+        // #pragma omp for reduction (+:navg) reduction(+:davg)
         // for( int i = 0; i < n; i++ )
         // {
         //     particles[i].ax = particles[i].ay = 0;
-        //     for (int j = 0; j < n; j++ ){
-        //         // if(!flag){
-        //             cout << "Applying " << i << " (" << particles[i].ax << ", " << particles[i].ay << ") to " << j << " (" << particles[j].ax << ", " << particles[j].ay << ")" << endl;
-        //         // }
-		// 		apply_force( particles[i], particles[j],&dmin,&davg,&navg);
-        //     }
-        //     flag = true;
+        //     for (int j = 0; j < n; j++ )
+        //         apply_force( particles[i], particles[j],&dmin,&davg,&navg);
         // }
- 
+        
+		
         //
         //  move particles
         //
+        #pragma omp for
         for( int i = 0; i < n; i++ ) 
-            move( particles[i] );		
-
-        if( find_option( argc, argv, "-no" ) == -1 )
+            move( particles[i] );
+  
+        if( find_option( argc, argv, "-no" ) == -1 ) 
         {
           //
-          // Computing statistical data
+          //  compute statistical data
           //
-          if (navg) {
-            absavg +=  davg/navg;
+          #pragma omp master
+          if (navg) { 
+            absavg += davg/navg;
             nabsavg++;
           }
-          if (dmin < absmin) absmin = dmin;
+
+          #pragma omp critical
+	    if (dmin < absmin) absmin = dmin; 
 		
           //
           //  save if necessary
           //
+          #pragma omp master
           if( fsave && (step%SAVEFREQ) == 0 )
               save( fsave, n, particles );
         }
     }
+}
     simulation_time = read_timer( ) - simulation_time;
     
-    printf( "n = %d, simulation time = %g seconds", n, simulation_time);
+    printf( "n = %d,threads = %d, simulation time = %g seconds", n,numthreads, simulation_time);
 
     if( find_option( argc, argv, "-no" ) == -1 )
     {
@@ -189,19 +182,20 @@ int main( int argc, char **argv )
     if (absmin < 0.4) printf ("\nThe minimum distance is below 0.4 meaning that some particle is not interacting");
     if (absavg < 0.8) printf ("\nThe average distance is below 0.8 meaning that most particles are not interacting");
     }
-    printf("\n");     
-
+    printf("\n");
+    
     //
     // Printing summary data
     //
-    if( fsum) 
-        fprintf(fsum,"%d %g\n",n,simulation_time);
- 
+    if( fsum)
+        fprintf(fsum,"%d %d %g\n",n,numthreads,simulation_time);
+
     //
     // Clearing space
     //
     if( fsum )
-        fclose( fsum );    
+        fclose( fsum );
+
     free( particles );
     if( fsave )
         fclose( fsave );
