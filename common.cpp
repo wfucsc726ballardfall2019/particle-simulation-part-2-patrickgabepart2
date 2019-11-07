@@ -60,6 +60,7 @@ void init_particles( int n, particle_t *p )
     
     for( int i = 0; i < n; i++ ) 
     {
+        p[i].index = i;
         //
         //  make sure particles are not spatially sorted
         //
