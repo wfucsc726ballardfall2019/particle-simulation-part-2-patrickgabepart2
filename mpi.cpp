@@ -3,6 +3,18 @@
 #include <stdio.h>
 #include <assert.h>
 #include "common.h"
+#include <vector>
+#include <math.h>
+#include <iostream>
+
+using namespace std;
+
+// constant copied from common.cpp for use
+#define density 0.0005
+#define mass    0.01
+#define cutoff  0.01
+#define min_r   (cutoff/100)
+#define dt      0.0005
 
 //
 //  benchmarking program
@@ -28,7 +40,7 @@ int main( int argc, char **argv )
         return 0;
     }
     
-    int n = read_int( argc, argv, "-n", 1000 );
+    int n = read_int( argc, argv, "-m", 1000 );
     char *savename = read_string( argc, argv, "-o", NULL );
     char *sumname = read_string( argc, argv, "-s", NULL );
     
@@ -39,12 +51,12 @@ int main( int argc, char **argv )
     MPI_Init( &argc, &argv );
     MPI_Comm_size( MPI_COMM_WORLD, &n_proc );
     MPI_Comm_rank( MPI_COMM_WORLD, &rank );
-    
+
     //
     //  allocate generic resources
     //
-    FILE *fsave = savename && rank == 0 ? fopen( savename, "w" ) : NULL;
-    FILE *fsum = sumname && rank == 0 ? fopen ( sumname, "a" ) : NULL;
+    FILE *fsave = savename ? fopen( savename, "w" ) : NULL;
+    FILE *fsum = sumname ? fopen ( sumname, "a" ) : NULL;
 
 
     particle_t *particles = (particle_t*) malloc( n * sizeof(particle_t) );
@@ -77,8 +89,20 @@ int main( int argc, char **argv )
     set_size( n );
     if( rank == 0 )
         init_particles( n, particles );
-    MPI_Scatterv( particles, partition_sizes, partition_offsets, PARTICLE, local, nlocal, PARTICLE, 0, MPI_COMM_WORLD );
+    //MPI_Scatterv( particles, partition_sizes, partition_offsets, PARTICLE, local, nlocal, PARTICLE, 0, MPI_COMM_WORLD );
     
+    //broadcast particles to every thread
+    MPI_Bcast(particles, n, PARTICLE, 0, MPI_COMM_WORLD);
+
+    //calculate the gridSize, binSize, and then number of bin on one side;
+    double gridSize = sqrt(n * density);
+    double binSize = cutoff * 2;     // equals to the diameter of the circle
+    int binNum = int(gridSize / binSize) + 1; // the binNum should be +1
+    int NumberOfBins = binNum * binNum;
+
+    //initialize the grid
+    vector<vector<int> > bin(NumberOfBins);
+
     //
     //  simulate a number of time steps
     //
@@ -91,8 +115,15 @@ int main( int argc, char **argv )
         // 
         //  collect all global data locally (not good idea to do)
         //
-        MPI_Allgatherv( local, nlocal, PARTICLE, particles, partition_sizes, partition_offsets, PARTICLE, MPI_COMM_WORLD );
-        
+        //MPI_Allgatherv( local, nlocal, PARTICLE, particles, partition_sizes, partition_offsets, PARTICLE, MPI_COMM_WORLD );
+      
+        //put all the particles into corresponding bins
+        for (int i = 0; i < n; i++){
+            int row = floor(particles[i].x / binSize);     //calculate the row index of the bin
+            int col = floor(particles[i].y / binSize);     //calculate the column index of the bin
+            bin[row * binNum + col].push_back(i);      //put the particle in to the bin in row major
+        }
+
         //
         //  save current step if necessary (slightly different semantics than in other codes)
         //
@@ -103,21 +134,27 @@ int main( int argc, char **argv )
         //
         //  compute all forces
         //
-        for( int i = 0; i < nlocal; i++ )
-        {
-            local[i].ax = local[i].ay = 0;
-            for (int j = 0; j < n; j++ )
-                apply_force( local[i], particles[j], &dmin, &davg, &navg );
+        //cout<<rank<<endl;
+
+        for(int i = rank*nlocal ; i<(rank+1)*nlocal ; i++){
+          particles[i].ax = particles[i].ay = 0;
+          int row = floor(particles[i].x / binSize);     //calculate the row index of the bin
+          int col = floor(particles[i].y / binSize);     //calculate the column index of the bin
+          for(int r = max(0,row -1); r<= min(row+1,binNum-1); r++){
+                for(int c = max(0,col -1); c<= min(col+1,binNum-1); c++ ){
+                    for (int l = 0; l < bin[r*binNum + c].size(); l++){
+                        int fa = bin[r*binNum + c].at(l);
+                        apply_force(particles[i], particles[fa], &dmin, &davg, &navg);
+                    }
+                }
+            }
         }
      
-        if( find_option( argc, argv, "-no" ) == -1 )
-        {
-          
+        if( find_option( argc, argv, "-no" ) == -1 ){
           MPI_Reduce(&davg,&rdavg,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
           MPI_Reduce(&navg,&rnavg,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
           MPI_Reduce(&dmin,&rdmin,1,MPI_DOUBLE,MPI_MIN,0,MPI_COMM_WORLD);
-
- 
+          
           if (rank == 0){
             //
             // Computing statistical data
@@ -133,8 +170,15 @@ int main( int argc, char **argv )
         //
         //  move particles
         //
-        for( int i = 0; i < nlocal; i++ )
-            move( local[i] );
+
+        for(int i = rank*nlocal ; i<(rank+1)*nlocal ; i++){
+          move(particles[i]);
+        }
+
+        for (int i = 0; i < binNum*binNum; i++){
+          bin[i].resize(0);
+        }
+
     }
     simulation_time = read_timer( ) - simulation_time;
   
@@ -173,6 +217,7 @@ int main( int argc, char **argv )
     free( partition_sizes );
     free( local );
     free( particles );
+
     if( fsave )
         fclose( fsave );
     
