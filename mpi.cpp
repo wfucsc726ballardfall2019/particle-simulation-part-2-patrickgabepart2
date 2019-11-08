@@ -142,17 +142,17 @@ int main( int argc, char **argv )
       // }
     }
 
-    cout << "Thread " <<  rank << " first contains: ";
-    for(int i = 0; i < nlocal; i++){
-      cout << local[i].index << " ";
-    }
-    cout << endl;
+    // cout << "Thread " <<  rank << " first contains: ";
+    // for(int i = 0; i < nlocal; i++){
+    //   cout << local[i].index << " ";
+    // }
+    // cout << endl;
 
-    cout << "Thread " <<  rank << " particles to send: ";
-    for(int i = 0; i < particles_to_send.size(); i++){
-      cout << particles_to_send[i].index << " ";
-    }
-    cout << endl;
+    // cout << "Thread " <<  rank << " particles to send: ";
+    // for(int i = 0; i < particles_to_send.size(); i++){
+    //   cout << particles_to_send[i].index << " ";
+    // }
+    // cout << endl;
 
     int num_receive;
     if(rank == 0){
@@ -163,18 +163,18 @@ int main( int argc, char **argv )
       particles_to_receive.resize(num_receive);
       MPI_Recv(&particles_to_receive[0], num_receive, PARTICLE, 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-      cout << "Thread " <<  rank << " particles received: ";
+      // cout << "Thread " <<  rank << " particles received: ";
       for(int i = 0; i < particles_to_receive.size(); i++){
-        cout << particles_to_receive[i].index << " ";
+        // cout << particles_to_receive[i].index << " ";
         local_vec.push_back(particles_to_receive[i]);
       }
-      cout << endl;
+      // cout << endl;
 
-      cout << "Thread 0 now contains: ";
-      for(int i = 0; i < local_vec.size(); i++){
-        cout << local_vec[i].index << " ";
-      }
-      cout << endl;
+      // cout << "Thread 0 now contains: ";
+      // for(int i = 0; i < local_vec.size(); i++){
+      //   cout << local_vec[i].index << " ";
+      // }
+      // cout << endl;
 
     }
     else{ //Thread 1
@@ -185,18 +185,18 @@ int main( int argc, char **argv )
       particles_to_receive.resize(num_receive);
       MPI_Recv(&particles_to_receive[0], num_receive, PARTICLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-      cout << "Thread " <<  rank << " particles received: ";
+      // cout << "Thread " <<  rank << " particles received: ";
       for(int i = 0; i < particles_to_receive.size(); i++){
-        cout << particles_to_receive[i].index << " ";
+        // cout << particles_to_receive[i].index << " ";
         local_vec.push_back(particles_to_receive[i]);
       }
-      cout << endl;
+      // cout << endl;
 
-      cout << "Thread 1 now contains: ";
+      // cout << "Thread 1 now contains: ";
       for(int i = 0; i < local_vec.size(); i++){
-        cout << local_vec[i].index << " ";
+        // cout << local_vec[i].index << " ";
       }
-      cout << endl;
+      // cout << endl;
 
     }
 
@@ -210,13 +210,13 @@ int main( int argc, char **argv )
     double simulation_time = read_timer( );
     for( int step = 0; step < NSTEPS; step++ )
     {
-        cout << endl;
+        // cout << endl;
 
-        cout << "Thread " <<  rank << " first contains: ";
-        for(int i = 0; i < local_vec.size(); i++){
-          cout << local_vec[i].index << " ";
-        }
-        cout << endl;
+        // cout << "Thread " <<  rank << " first contains: ";
+        // for(int i = 0; i < local_vec.size(); i++){
+        //   cout << local_vec[i].index << " ";
+        // }
+        // cout << endl;
 
         
         particles_to_receive.clear();
@@ -259,15 +259,15 @@ int main( int argc, char **argv )
         }
         local_vec = temp;
 
-        cout << "Thread " <<  rank << " particles to send: ";
-        for(int i = 0; i < particles_to_send.size(); i++){
-          cout << particles_to_send[i].index << " ";
-        }
-        cout << "( boundary: ";
-        for(int i = 0; i < boundary.size(); i++){
-        cout << boundary[i].index << " ";
-        }
-        cout << ")" << endl;
+        // cout << "Thread " <<  rank << " particles to send: ";
+        // for(int i = 0; i < particles_to_send.size(); i++){
+        //   cout << particles_to_send[i].index << " ";
+        // }
+        // cout << "( boundary: ";
+        // for(int i = 0; i < boundary.size(); i++){
+        // cout << boundary[i].index << " ";
+        // }
+        // cout << ")" << endl;
 
         
 
@@ -307,25 +307,25 @@ int main( int argc, char **argv )
           MPI_Recv(&b_temp[0], num_b, PARTICLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
 
-        cout << "Thread " <<  rank << " particles received: ";
+        // cout << "Thread " <<  rank << " particles received: ";
         for(int i = 0; i < particles_to_receive.size(); i++){
-          cout << particles_to_receive[i].index << " ";
+          // cout << particles_to_receive[i].index << " ";
           local_vec.push_back(particles_to_receive[i]);
         }
-        cout << "( boundary: ";
-        for(int i = 0; i < b_temp.size(); i++){
-        cout << b_temp[i].index << " ";
-        }
-        cout << ")" << endl;
+        // cout << "( boundary: ";
+        // for(int i = 0; i < b_temp.size(); i++){
+        // cout << b_temp[i].index << " ";
+        // }
+        // cout << ")" << endl;
 
-        cout << "Thread " << rank << " now contains: ";
-        for(int i = 0; i < local_vec.size(); i++){
-          cout << local_vec[i].index << " ";
-        }
-        for(int i = 0; i < b_temp.size(); i++){
-          cout << b_temp[i].index << " ";
-        }
-        cout << endl;
+        // cout << "Thread " << rank << " now contains: ";
+        // for(int i = 0; i < local_vec.size(); i++){
+        //   cout << local_vec[i].index << " ";
+        // }
+        // for(int i = 0; i < b_temp.size(); i++){
+        //   cout << b_temp[i].index << " ";
+        // }
+        // cout << endl;
 
         MPI_Barrier(MPI_COMM_WORLD);
 
