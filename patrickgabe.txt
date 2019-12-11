@@ -1,0 +1,19 @@
+Feedback
+
+Serial
+ - Explanation: good
+ - Implementation: used vector of cells
+ - Results: good results, used loglog plot
+34/34
+
+OpenMP
+ - Explanation: Reasonable explanation of parallel for pragmas, including using collapse (though the code might be better implemented as a single loop over the 1D vector of cells).  There's little description of where the time is going, which might have uncovered the performance bug.
+ - Implementation: The biggest implementation problem is that there's a single lock for all cells.  This means that the binning procedure is completely serialized.  You need a separate lock for each bin, as its fine for different processors to push to different cell vectors at the same time.  The loop structure is a bit convoluted, leading to inefficiency.  For example, setting accelerations to zero is done cell by cell, which means the data access pattern to the particles is random rather than (somewhat) contiguous. 
+ - Results: The parallel code goes slower than the serial code.  You notice that the new code weak scales better than the naive code, but that's because the naive code is O(n^2/p).  Neither code strong scales, but the naive code should strong scale reasonably well; maybe your results don't show this because the problem size is small.
+22/33
+
+MPI
+ - Explanation: Algorithm for 2 threads given, makes sense.
+ - Implementation: Implementation is hard-coded for 2 threads.  It gives correct results but is limited to 300 or fewer particles.  I'm not sure why the code fails with more, possibly problems with vector resizing?
+ - Results: Little speedup with 2 threads.  Comparison with naive code shown for fewer than 300 particles.  Could have done a strong scaling experiment with the naive code to see that it scales reasonably well.
+22/33
